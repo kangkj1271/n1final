@@ -619,8 +619,8 @@ function bkBanner(){
 function viewHome(){
   const idx=dayIdx(),d=curDay(),dl=dLeft(),t=dayType(d);
   const dd=dl>0?'D-'+dl:dl===0?'D-DAY':'D+'+(-dl);
-  const mins=Math.floor((S.min[tkey()]||0)/60),goal=dayMin(d);
-  const pct=Math.min(1,mins/goal),C=2*Math.PI*40;
+  const sl=segList(d),nd=sl.filter(x=>segDone(d,x.id)).length,tot=sl.length;
+  const pct=nd/tot,C=2*Math.PI*40;
   const phase=t==='new'?'1회독 · 새 범위':t==='review'?'2회독 · 약점 우선':'최종 점검';
   let msg='';
   if(idx<1)msg='11월 7일(토)부터 시작해요. 미리 Day 1을 해봐도 좋아요.';
@@ -631,7 +631,7 @@ function viewHome(){
   return`<div class="hdr"><span class="brand">JLPT N1 · 2026.12.06</span><span class="mono muted" style="font-size:11px">${storeOK?'자동 저장 · '+savedAt():'저장 안 됨'}</span></div>
 ${bkBanner()}
 <div class="sheet"><div class="hero"><div><div class="dday">${dd}</div><small>${msg||'12월 6일(일) JLPT N1'}</small></div>
-<div class="ring"><svg viewBox="0 0 92 92"><circle cx="46" cy="46" r="40" fill="none" stroke="var(--line)" stroke-width="8"/><circle cx="46" cy="46" r="40" fill="none" stroke="var(--ai)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-pct)).toFixed(1)}"/></svg><div class="tx"><b>${mins}</b><span>/ ${goal}분</span></div></div></div>
+<div class="ring"><svg viewBox="0 0 92 92"><circle cx="46" cy="46" r="40" fill="none" stroke="var(--line)" stroke-width="8"/><circle cx="46" cy="46" r="40" fill="none" stroke="var(--ai)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-pct)).toFixed(1)}"/></svg><div class="tx"><b>${nd}</b><span>/ ${tot}파트</span></div></div></div>
 <div class="daybar"><b class="mono" style="color:var(--ink)">Day ${d} / ${LAST}</b><span>${fmt(dateOf(d))}</span><span class="tag">${phase}</span>${dayDone(d)?'<span class="tag stamp">済 오늘 완료</span>':''}</div></div>
 ${(()=>{const r=resumeInfo();return r?`<button class="btn" data-a="seg" data-d="${r.d}" data-s="${r.id}" style="width:100%;justify-content:space-between;margin-bottom:14px;min-height:52px"><span>이어서 하기 · ${esc(r.label)}${r.d!==d?' (Day '+r.d+')':''}</span><span class="mono">${r.i+1} / ${r.tot}</span></button>`:'';})()}
 ${missed.length?`<div class="sheet" style="border-color:var(--stamp)"><b style="color:var(--stamp)">밀린 날 ${missed.length}일</b> <span class="muted" style="font-size:13px">${missed.slice(0,6).map(k=>fmtS(dateOf(k))).join(', ')}${missed.length>6?' …':''}</span><div style="margin-top:8px"><button class="btn sm ghost" data-a="tab" data-t="plan">일정에서 보기</button></div><p class="note">못 한 범위는 2회독 기간에 약점 우선으로 다시 나와요.</p></div>`:''}
@@ -780,7 +780,7 @@ function ovHTML(){
   const body=ses.kind==='cards'?ovCards():ovQuiz();
   return`<div class="ov"><div class="in"><div class="oh"><button class="x" data-a="close" aria-label="닫기">${ICON.x}</button><div class="tt">${esc(ses.free?ses.label:'Day '+ses.d+' · '+ses.label)}</div><div class="tm" id="tm">${tmText()}</div></div><div class="prog"><i style="width:${pr}%"></i></div>${body}</div></div>`;
 }
-const tmText=()=>'오늘 '+Math.floor((S.min[tkey()]||0)/60)+'분';
+const tmText=()=>{if(!ses||ses.free)return'';const l=segList(ses.d);return '오늘 '+l.filter(x=>segDone(ses.d,x.id)).length+'/'+l.length+'파트';};
 function render(){
   if(ses){$app.innerHTML=ovHTML();return;}
   let h='';
