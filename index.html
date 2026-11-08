@@ -215,7 +215,7 @@ const blank=()=>({v:{},g:{},sec:{},min:{},cfg:{dir:'w2m'},at:0});
 let storeOK=true;
 function load(){try{localStorage.setItem(KEY+'-probe','1');localStorage.removeItem(KEY+'-probe');}catch(e){storeOK=false;}try{const t=localStorage.getItem(KEY);if(t)return Object.assign(blank(),JSON.parse(t));}catch(e){storeOK=false;}return blank();}
 let S=load(),saveT=0;
-function save(now){clearTimeout(saveT);S.at=Date.now();const f=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));storeOK=true;}catch(e){storeOK=false;}};if(now)f();else saveT=setTimeout(f,400);}
+function save(now){clearTimeout(saveT);S.at=Date.now();const f=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));storeOK=true;}catch(e){storeOK=false;}};f();}
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 const hm=t=>{const d=new Date(t);return p2(d.getHours())+':'+p2(d.getMinutes());};
 const savedAt=()=>{if(!S.at)return'아직 없음';const d=new Date(S.at),n=new Date();return (d.toDateString()===n.toDateString()?'오늘 ':(d.getMonth()+1)+'/'+d.getDate()+' ')+hm(S.at);};
@@ -504,6 +504,7 @@ function openSeg(d,id){
   if(!sg||sg.done||!(sg.deck||sg.qs)){const was=!!(sg&&(sg.done||sg.was));sg=build(d,id,((sg&&sg.n)||0)+1);if(was)sg.was=true;(S.sec[d]=S.sec[d]||{})[id]=sg;save();}
   const empty=sg.deck?!sg.deck.length:!sg.qs.length;
   if(empty){sg.done=true;save();toast(id==='wrap'?'오늘은 틀린 항목이 없어요. 완료 처리했어요':'비어 있는 파트라 완료 처리했어요');render();return;}
+  if(sg.i>0&&!sg.done)toast((sg.i+1)+(sg.deck?'번째 카드부터':'번째 문제부터')+' 이어서 해요');
   ses={d,id,sg,flip:false,hist:[],free:false,kind:CARDSEG.includes(id)?'cards':'quiz',label:segList(d).find(s=>s.id===id).label,sum:false,retry:null};
   render();
 }
@@ -601,9 +602,13 @@ function dayCard(d){
     const st=segSt(d,sg.id);let cls='',pr='',extra='';
     if(st&&(st.done||st.was)&&!(st.i>0&&!st.done)){cls='done';}
     else if(st&&(st.i>0)){const tot=st.deck?st.deck.length:st.qs.length;cls='part';pr=` style="--p:${Math.round(st.i/tot*100)}"`;extra=` · ${st.i}/${tot} 진행`;}
-    return`<button class="seg ${cls}"${pr} data-a="seg" data-d="${d}" data-s="${sg.id}"><span class="bub">${cls==='done'?ICON.chk:i+1}</span><span><span class="t">${sg.label}</span><br><span class="d">${esc(segDesc(d,sg))}${extra}</span></span><span class="m">${cls==='done'?'다시':sg.min+'분'}</span></button>`;
+    return`<button class="seg ${cls}"${pr} data-a="seg" data-d="${d}" data-s="${sg.id}"><span class="bub">${cls==='done'?ICON.chk:i+1}</span><span><span class="t">${sg.label}</span><br><span class="d">${esc(segDesc(d,sg))}${extra}</span></span><span class="m">${cls==='done'?'다시':cls==='part'?'이어서':sg.min+'분'}</span></button>`;
   }).join('');
   return`<div class="sheet">${rows}</div>`;
+}
+function resumeInfo(){
+  for(let d=curDay();d>=1;d--){for(const sg of segList(d)){const st=segSt(d,sg.id);if(st&&!st.done&&st.i>0&&(st.deck||st.qs)){const tot=st.deck?st.deck.length:st.qs.length;return{d,id:sg.id,label:sg.label,i:st.i,tot,q:!st.deck};}}}
+  return null;
 }
 function bkBanner(){
   if(!storeOK)return`<div class="sheet" style="border-color:var(--bad)"><b style="color:var(--bad)">이 브라우저에서는 저장이 안 돼요</b><p class="note" style="margin:6px 0 0">진도가 사라질 수 있어요. Safari에서 열어 주세요. 그 전에는 설정 탭에서 파일로 백업해 두세요.</p></div>`;
@@ -628,7 +633,9 @@ ${bkBanner()}
 <div class="sheet"><div class="hero"><div><div class="dday">${dd}</div><small>${msg||'12월 6일(일) JLPT N1'}</small></div>
 <div class="ring"><svg viewBox="0 0 92 92"><circle cx="46" cy="46" r="40" fill="none" stroke="var(--line)" stroke-width="8"/><circle cx="46" cy="46" r="40" fill="none" stroke="var(--ai)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-pct)).toFixed(1)}"/></svg><div class="tx"><b>${mins}</b><span>/ ${goal}분</span></div></div></div>
 <div class="daybar"><b class="mono" style="color:var(--ink)">Day ${d} / ${LAST}</b><span>${fmt(dateOf(d))}</span><span class="tag">${phase}</span>${dayDone(d)?'<span class="tag stamp">済 오늘 완료</span>':''}</div></div>
+${(()=>{const r=resumeInfo();return r?`<button class="btn" data-a="seg" data-d="${r.d}" data-s="${r.id}" style="width:100%;justify-content:space-between;margin-bottom:14px;min-height:52px"><span>이어서 하기 · ${esc(r.label)}${r.d!==d?' (Day '+r.d+')':''}</span><span class="mono">${r.i+1} / ${r.tot}</span></button>`:'';})()}
 ${missed.length?`<div class="sheet" style="border-color:var(--stamp)"><b style="color:var(--stamp)">밀린 날 ${missed.length}일</b> <span class="muted" style="font-size:13px">${missed.slice(0,6).map(k=>fmtS(dateOf(k))).join(', ')}${missed.length>6?' …':''}</span><div style="margin-top:8px"><button class="btn sm ghost" data-a="tab" data-t="plan">일정에서 보기</button></div><p class="note">못 한 범위는 2회독 기간에 약점 우선으로 다시 나와요.</p></div>`:''}
+
 <div class="sec-title"><h2>오늘의 학습지${last?' · 시험 전날':''}</h2><span class="mono muted" style="font-size:12px">${dayMin(d)}분</span></div>
 ${dayCard(d)}
 ${last?'<p class="note">시험 전날이에요. 새로운 것은 보지 말고 약점만 훑은 뒤 일찍 쉬세요.</p>':''}
@@ -830,8 +837,11 @@ document.addEventListener('keydown',e=>{
 });
 /* ---- 백업 ---- */
 function makeBackup(){
-  const done={};Object.keys(S.sec).forEach(d=>Object.keys(S.sec[d]).forEach(id=>{if(S.sec[d][id].done)(done[d]=done[d]||[]).push(id);}));
-  const o={v:S.v,g:S.g,min:S.min,cfg:S.cfg,done};
+  const done={},part={};
+  Object.keys(S.sec).forEach(d=>Object.keys(S.sec[d]).forEach(id=>{const x=S.sec[d][id];
+    if(x.done||x.was)(done[d]=done[d]||[]).push(id);
+    if(!x.done&&x.deck&&x.deck.length&&x.i>0)(part[d]=part[d]||{})[id]={deck:x.deck,i:x.i,c:x.c,n:x.n||1};}));
+  const o={v:S.v,g:S.g,min:S.min,cfg:S.cfg,done,part};
   return'N1L1|'+btoa(unescape(encodeURIComponent(JSON.stringify(o))));
 }
 function restoreBackup(t){
@@ -842,6 +852,8 @@ function restoreBackup(t){
     const o=JSON.parse(decodeURIComponent(escape(atob(t.slice(5)))));
     const n=blank();n.v=o.v||{};n.g=o.g||{};n.min=o.min||{};n.cfg=Object.assign(n.cfg,o.cfg||{});n.cfg.bk=Date.now();
     Object.keys(o.done||{}).forEach(d=>{n.sec[d]={};o.done[d].forEach(id=>{n.sec[d][id]={done:true,i:0,deck:[],c:[0,0,0]};});});
+    Object.keys(o.part||{}).forEach(d=>{n.sec[d]=n.sec[d]||{};Object.keys(o.part[d]).forEach(id=>{const x=o.part[d][id];
+      if(Array.isArray(x.deck)&&x.i>0&&x.i<x.deck.length&&x.deck.every(k=>VM.has(k)||GM.has(k)))n.sec[d][id]={deck:x.deck,i:x.i,c:x.c||[0,0,0],done:false,n:x.n||1};});});
     S=n;save(true);ui.backup='';render();toast('진도를 복원했어요');
   }catch(e){toast('코드를 읽을 수 없어요. 처음부터 끝까지 복사했는지 확인해 주세요');}
 }
