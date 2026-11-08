@@ -112,7 +112,7 @@ h2{font-size:17px;font-weight:700}
 .seg2{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .seg2 button{flex:1;padding:10px;text-align:center;font-size:14px;font-weight:500;background:var(--card)}
 .seg2 button.on{background:var(--ai);color:var(--card)}
-textarea{width:100%;min-height:92px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);font:12px/1.4 var(--f-mono);padding:10px;resize:vertical}
+textarea{width:100%;min-height:92px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);font:12px/1.4 var(--f-mono);padding:10px;resize:vertical;margin-top:10px}
 .note{font-size:12.5px;color:var(--ink2);margin:8px 0 0}
 /* tabbar */
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);display:flex;
@@ -211,10 +211,17 @@ const fmt=d=>(d.getMonth()+1)+'월 '+d.getDate()+'일 ('+WD[d.getDay()]+')';
 const fmtS=d=>(d.getMonth()+1)+'/'+d.getDate();
 /* ================= 저장 ================= */
 const KEY='n1-last-sheet-v1';
-const blank=()=>({v:{},g:{},sec:{},min:{},cfg:{dir:'w2m'}});
-function load(){try{const t=localStorage.getItem(KEY);if(t)return Object.assign(blank(),JSON.parse(t));}catch(e){}return blank();}
+const blank=()=>({v:{},g:{},sec:{},min:{},cfg:{dir:'w2m'},at:0});
+let storeOK=true;
+function load(){try{localStorage.setItem(KEY+'-probe','1');localStorage.removeItem(KEY+'-probe');}catch(e){storeOK=false;}try{const t=localStorage.getItem(KEY);if(t)return Object.assign(blank(),JSON.parse(t));}catch(e){storeOK=false;}return blank();}
 let S=load(),saveT=0;
-function save(now){clearTimeout(saveT);const f=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}};if(now)f();else saveT=setTimeout(f,400);}
+function save(now){clearTimeout(saveT);S.at=Date.now();const f=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));storeOK=true;}catch(e){storeOK=false;}};if(now)f();else saveT=setTimeout(f,400);}
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
+const hm=t=>{const d=new Date(t);return p2(d.getHours())+':'+p2(d.getMinutes());};
+const savedAt=()=>{if(!S.at)return'아직 없음';const d=new Date(S.at),n=new Date();return (d.toDateString()===n.toDateString()?'오늘 ':(d.getMonth()+1)+'/'+d.getDate()+' ')+hm(S.at);};
+const bkDays=()=>S.cfg.bk?Math.floor((Date.now()-S.cfg.bk)/864e5):-1;
+const bkText=()=>{const d=bkDays();return d<0?'아직 없음':d===0?'오늘':d+'일 전';};
+const hasProg=()=>Object.keys(S.v).length+Object.keys(S.g).length>0;
 const getS=(k,id)=>(S[k][id]||{}).s||0;
 const getT=(k,id)=>(S[k][id]||{}).t||0;
 const setS=(k,id,s)=>{S[k][id]={s,t:tkey()};};
@@ -598,6 +605,12 @@ function dayCard(d){
   }).join('');
   return`<div class="sheet">${rows}</div>`;
 }
+function bkBanner(){
+  if(!storeOK)return`<div class="sheet" style="border-color:var(--bad)"><b style="color:var(--bad)">이 브라우저에서는 저장이 안 돼요</b><p class="note" style="margin:6px 0 0">진도가 사라질 수 있어요. Safari에서 열어 주세요. 그 전에는 설정 탭에서 파일로 백업해 두세요.</p></div>`;
+  if(!hasProg())return'';
+  const d=bkDays();if(d>=0&&d<3)return'';
+  return`<div class="sheet"><b>${d<0?'아직 백업한 적이 없어요':d+'일 전에 백업했어요'}</b><p class="note" style="margin:6px 0 10px">기기를 바꾸거나 사이트 데이터를 지우면 진도가 사라져요. 가끔 파일로 백업해 두세요.</p><button class="btn sm ghost" data-a="tab" data-t="set">백업하러 가기</button></div>`;
+}
 function viewHome(){
   const idx=dayIdx(),d=curDay(),dl=dLeft(),t=dayType(d);
   const dd=dl>0?'D-'+dl:dl===0?'D-DAY':'D+'+(-dl);
@@ -610,7 +623,8 @@ function viewHome(){
   else if(dl===0)msg='오늘이 시험일이에요. 컨디션 관리가 우선이에요.';
   const missed=[];for(let k=1;k<Math.min(d,idx>LAST?LAST+1:d);k++)if(!dayDone(k))missed.push(k);
   const last=d===LAST;
-  return`<div class="hdr"><span class="brand">JLPT N1 · 2026.12.06</span></div>
+  return`<div class="hdr"><span class="brand">JLPT N1 · 2026.12.06</span><span class="mono muted" style="font-size:11px">${storeOK?'자동 저장 · '+savedAt():'저장 안 됨'}</span></div>
+${bkBanner()}
 <div class="sheet"><div class="hero"><div><div class="dday">${dd}</div><small>${msg||'12월 6일(일) JLPT N1'}</small></div>
 <div class="ring"><svg viewBox="0 0 92 92"><circle cx="46" cy="46" r="40" fill="none" stroke="var(--line)" stroke-width="8"/><circle cx="46" cy="46" r="40" fill="none" stroke="var(--ai)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-pct)).toFixed(1)}"/></svg><div class="tx"><b>${mins}</b><span>/ ${goal}분</span></div></div></div>
 <div class="daybar"><b class="mono" style="color:var(--ink)">Day ${d} / ${LAST}</b><span>${fmt(dateOf(d))}</span><span class="tag">${phase}</span>${dayDone(d)?'<span class="tag stamp">済 오늘 완료</span>':''}</div></div>
@@ -676,8 +690,10 @@ function viewWeak(){
 function viewSet(){
   return`<div class="hdr"><span class="brand">설정 · 백업</span></div>
 <div class="sheet"><h2 style="margin-bottom:10px">단어 카드 방향</h2><div class="seg2"><button class="${S.cfg.dir==='w2m'?'on':''}" data-a="dir" data-v="w2m">단어 → 읽기·뜻</button><button class="${S.cfg.dir==='m2w'?'on':''}" data-a="dir" data-v="m2w">뜻 → 단어</button></div></div>
-<div class="sheet"><h2 style="margin-bottom:6px">진도 백업 / 복원</h2><p class="note" style="margin:0 0 10px">이 기기 브라우저에만 저장돼요. 기기를 바꾸거나 데이터를 지우기 전에 코드를 복사해 두세요.</p>
-<div class="row"><button class="btn sm ghost" data-a="mkbackup">백업 코드 만들기</button><button class="btn sm line" data-a="copybackup">복사</button></div>
+<div class="sheet"><h2 style="margin-bottom:6px">저장 상태</h2><p style="margin:0;font-size:14px">${storeOK?'자동 저장 켜짐':'<b style="color:var(--bad)">이 브라우저에서는 저장되지 않아요</b>'} · <span class="muted">마지막 저장 ${savedAt()}</span></p><p class="note" style="margin:6px 0 0">카드를 넘기거나 문제를 풀 때마다 이 기기의 브라우저에 자동으로 저장돼요. 마지막 백업: ${bkText()}</p></div>
+<div class="sheet"><h2 style="margin-bottom:6px">진도 백업 / 복원</h2><p class="note" style="margin:0 0 10px">기기를 바꾸거나 사이트 데이터를 지우기 전에 백업해 두세요. 파일은 「파일」 앱이나 카카오톡 나에게 보내기 등에 보관하면 돼요. 복원하면 지금 진도를 덮어써요.</p>
+<div class="row"><button class="btn sm" data-a="bkfile">파일로 저장</button><button class="btn sm line" data-a="pickfile">파일에서 복원</button><input type="file" id="bkf" accept=".txt,text/plain" style="position:absolute;left:-9999px;opacity:0;width:1px;height:1px" tabindex="-1" aria-hidden="true"></div>
+<div class="row" style="margin-top:10px"><button class="btn sm ghost" data-a="mkbackup">백업 코드 만들기</button><button class="btn sm line" data-a="copybackup">복사</button></div>
 <textarea id="bk" placeholder="백업 코드가 여기에 나와요. 복원하려면 코드를 붙여넣고 아래 버튼을 누르세요." spellcheck="false">${esc(ui.backup)}</textarea>
 <div class="row" style="margin-top:10px"><button class="btn sm" data-a="restore">이 코드로 복원</button></div></div>
 <div class="sheet"><h2 style="margin-bottom:6px">진도 초기화</h2>${ui.reset?'<p class="note" style="margin:0 0 10px;color:var(--bad)">모든 진도와 약점 기록이 지워져요. 정말 지울까요?</p><div class="row"><button class="btn sm" style="background:var(--bad)" data-a="doreset">지우기</button><button class="btn sm line" data-a="noreset">취소</button></div>':'<button class="btn sm line" data-a="reset">초기화…</button>'}</div>
@@ -791,6 +807,8 @@ $app.addEventListener('click',ev=>{
     case'known':setS(el.dataset.k,el.dataset.id,3);save();render();break;
     case'dir':S.cfg.dir=el.dataset.v;save();render();break;
     case'mkbackup':ui.backup=makeBackup();render();break;
+    case'bkfile':bkFile();break;
+    case'pickfile':{const f=document.getElementById('bkf');if(f)f.click();break;}
     case'copybackup':copyBackup();break;
     case'restore':restoreBackup();break;
     case'reset':ui.reset=1;render();break;
@@ -816,20 +834,37 @@ function makeBackup(){
   const o={v:S.v,g:S.g,min:S.min,cfg:S.cfg,done};
   return'N1L1|'+btoa(unescape(encodeURIComponent(JSON.stringify(o))));
 }
-function restoreBackup(){
-  const t=(document.getElementById('bk').value||'').trim();
+function restoreBackup(t){
+  if(typeof t!=='string')t=document.getElementById('bk').value||'';
+  t=t.trim();
   try{
     if(!t.startsWith('N1L1|'))throw 0;
     const o=JSON.parse(decodeURIComponent(escape(atob(t.slice(5)))));
-    const n=blank();n.v=o.v||{};n.g=o.g||{};n.min=o.min||{};n.cfg=Object.assign(n.cfg,o.cfg||{});
+    const n=blank();n.v=o.v||{};n.g=o.g||{};n.min=o.min||{};n.cfg=Object.assign(n.cfg,o.cfg||{});n.cfg.bk=Date.now();
     Object.keys(o.done||{}).forEach(d=>{n.sec[d]={};o.done[d].forEach(id=>{n.sec[d][id]={done:true,i:0,deck:[],c:[0,0,0]};});});
     S=n;save(true);ui.backup='';render();toast('진도를 복원했어요');
   }catch(e){toast('코드를 읽을 수 없어요. 처음부터 끝까지 복사했는지 확인해 주세요');}
 }
+async function bkFile(){
+  const code=makeBackup(),d=new Date();
+  const name='n1-progress-'+d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'.txt';
+  try{
+    const f=new File([code],name,{type:'text/plain'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'N1 진도 백업'});}
+    else{const u=URL.createObjectURL(f),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);}
+    S.cfg.bk=Date.now();save(true);toast('백업 파일을 만들었어요');render();
+  }catch(e){if(e&&e.name==='AbortError')return;toast('파일로 저장하지 못했어요. 백업 코드를 복사해 주세요');}
+}
+$app.addEventListener('change',ev=>{
+  const el=ev.target;
+  if(el&&el.id==='bkf'&&el.files&&el.files[0]){
+    const r=new FileReader();r.onload=()=>restoreBackup(String(r.result||''));r.onerror=()=>toast('파일을 읽을 수 없어요');r.readAsText(el.files[0]);el.value='';
+  }
+});
 function copyBackup(){
   const ta=document.getElementById('bk');if(!ta||!ta.value){toast('먼저 백업 코드를 만들어 주세요');return;}
   const fb=()=>{ta.focus();ta.select();toast('코드를 선택했어요. 길게 눌러 복사해 주세요');};
-  try{navigator.clipboard.writeText(ta.value).then(()=>toast('복사했어요'),fb);}catch(e){fb();}
+  try{navigator.clipboard.writeText(ta.value).then(()=>{S.cfg.bk=Date.now();save(true);toast('복사했어요');},fb);}catch(e){fb();}
 }
 /* ---- 공부 시간 ---- */
 setInterval(()=>{
